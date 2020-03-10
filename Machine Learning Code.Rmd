@@ -1,0 +1,139 @@
+---
+title: "Machine Learning"
+author: "Snr Data Analyst Moses Kioko"
+date: "9th March 2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+The data is drawn from Kangle Repository, to access the data-set click the URL https://code.datasciencedojo.com/datasciencedojo/datasets/tree/master/User%20Knowledge%20Modeling 
+
+Setting working Directory and calling required libraries 
+```{r message=FALSE, warning=FALSE}
+#setting a working directory
+setwd("E:/Datasets")
+
+#libraries 
+library(tidyverse) 
+library(Amelia)#checking for missing values 
+library(skimr) #generates descriptive statistics 
+library(caTools) #splitting the data
+library(class) #knn package
+library(mclust) #Bayesian inference for k means 
+library(rio) #importing data
+install_formats()
+```
+
+Preparing the data-sets 
+```{r message=FALSE, warning=FALSE}
+#read data from Microsoft excel into R 
+data_1<-import("Data_User_Modeling_Dataset_Hamdi Tolga KAHRAMAN.xls",
+                   sheet="Training_Data")
+data_2<-import("Data_User_Modeling_Dataset_Hamdi Tolga KAHRAMAN.xls",
+                   sheet="Test_Data")
+
+#combine two data-sets so that we can randomly subset the data using caTools package
+raw_data<-data_1 %>% 
+  rbind(data_2)
+
+#sub setting the data
+raw_data<-raw_data[,1:6]
+
+#reading UNS as character 
+raw_data$UNS<-as.character(raw_data$UNS)
+```
+
+**Descriptive Analysis**
+
+ - **Structure and Dimension of Data**
+```{r}
+#structure of raw_data
+str(raw_data)
+```
+ 
+ - **Checking for Missing Values** 
+```{r}
+missmap(raw_data,main = "Missing Values Plot",
+        col=c("red","sky blue"),
+        legend = T,
+        las=F)
+```
+
+ - **Descriptive Statistics** 
+```{r}
+#Exploring the data-set
+skim(raw_data)
+```
+
+The data-set is well normalized as most of values range between 0 and 1,Therefore we can proceed with running the algorithm.
+
+
+**Classification using KNN Algorithm**
+
+1. **Elbow Method**
+
+```{r}
+#determining the optimal k value
+# function to compute total within-cluster sum of square 
+wss <- function(k) {
+  kmeans(raw_data[1:5], k, nstart = 10 )$tot.withinss
+}
+
+
+# Compute and plot wss for k = 1 to k = 20
+k.values <- 1:15
+
+# extract was for 2-15 clusters
+wss_values <- map_dbl(k.values, wss)
+
+#elbow graph 
+plot(k.values, wss_values,
+       type="b", pch = 19, frame = FALSE, 
+       xlab="Number of clusters K",
+       ylab="Total within-clusters sum of squares")
+```
+
+In elbow method its difficult to determine the optimal k value as the trend in the line is not well defined therefore we go a step further and use Bayesian Inference Criterion 
+
+2. **Bayesian Inference Criterion for k Means**
+```{r}
+d_clust <- Mclust(as.matrix(raw_data[1:5]), G=1:15, 
+                  modelNames = mclust.options("emModelNames"))
+
+#best k-values
+plot(d_clust$BIC,
+     las=1,
+     cex=0.4,
+     ylab = "Bayesian Inference Criterion(BIC)")
+```
+
+From the graph the best k value is 8. Therefore, we will use 8 clusters in the knn model.
+
+3. **KNN Model**
+```{r}
+#randomization
+set.seed(1234)
+
+#splitting the data
+sample<-sample.split(raw_data$UNS,SplitRatio = 0.7)
+training_data<-subset(raw_data[1:5],sample==T)
+testing_data<-subset(raw_data[1:5],sample==F)
+training_labels<-subset(raw_data[,6],sample==T)
+testing_labels<-subset(raw_data[,6],sample==F)
+
+
+#KNN model
+predicted.rank<-knn(train=training_data,test=testing_data,cl=training_labels,k=8)
+
+#Accuracy of the model 
+missclafication.error<-mean(testing_labels!=predicted.rank)
+Accuracy<-round((1-missclafication.error)*100,2)
+```
+The accuracy of KNN model in predicting the knowledge level of the users is `r Accuracy`%
+
+
+
+
+
+
